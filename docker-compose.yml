@@ -1,0 +1,61 @@
+version: '3.6'
+
+# uncomment if you want to use external network (example network: "web")
+networks:
+  web:
+    driver: bridge
+
+services:
+  db:
+    image: mysql:5
+    env_file: .env
+    restart: always
+    volumes:
+      - ./data/db:/var/lib/mysql
+    networks:
+      - web
+
+  app:
+    image: invoiceninja/invoiceninja:4.5.17
+    env_file: .env
+    restart: always
+    depends_on:
+      - db
+    volumes:
+      - ./data/storage:/var/www/app/storage
+      - ./data/logo:/var/www/app/public/logo
+      - ./data/public:/var/www/app/public
+    networks:
+      - web
+
+  web:
+    image: nginx:1
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./data/storage:/var/www/app/storage
+      - ./data/logo:/var/www/app/public/logo
+      - ./data/public:/var/www/app/public
+    expose: # Expose ports without publishing them to the host machine - they’ll only be accessible to linked services.
+      - "80"
+    depends_on:
+      - app
+    ports: # Delete if you want to use reverse proxy
+      - 8443:80
+    networks:
+      - web # uncomment if you want to use external network (reverse proxy for example)
+  
+  db_backup:
+    image: databack/mysql-backup
+    restart: always
+    volumes:
+      - ./data/invoiceninja_db_backup:/db 
+    depends_on:
+      - db
+    environment:
+      - DB_SERVER=db
+      - DB_USER=root
+      - DB_PASS=pwd
+      - DB_DUMP_TARGET=/db
+      - DB_DUMP_CRON=0 13 * * 5
+    networks:
+      - web # uncomment if you want to use external network (reverse proxy for example)
